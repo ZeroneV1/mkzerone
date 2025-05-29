@@ -39,42 +39,25 @@ Virus.prototype.onEaten = function(cell) {
 
     var cellsLeft = (config.virusMaxCells || config.playerMaxCells) - cell.owner.cells.length;
     if (cellsLeft <= 0) return;
+
     var splitMin = config.virusMaxPoppedSize * config.virusMaxPoppedSize / 100;
     var cellMass = cell._mass, splits = [], splitCount, splitMass;
 
-    if (config.virusEqualPopSize) {
-        // definite monotone splits
-        splitCount = Math.min(~~(cellMass / splitMin), cellsLeft);
-        splitMass = cellMass / (1 + splitCount);
-        for (var i = 0; i < splitCount; i++)
-            splits.push(splitMass);
-        return this.explodeCell(cell, splits);
+    // Max split mass (example: if mass > 460, limit the mass to split)
+    var maxSplitMass = 460; // Set a max mass threshold for splitting
+    if (cellMass > maxSplitMass) {
+        cellMass = maxSplitMass; // Only use up to max split mass
     }
 
-    if (cellMass / cellsLeft < splitMin) {
-        // powers of 2 monotone splits
-        splitCount = 0;
-        splitMass = cellMass / splitCount;
-        while (splitMass > splitMin && splitCount * 2 < cellsLeft)
-            splitMass = cellMass / (splitCount *= 2);
-        splitMass = cellMass / (splitCount + 1);
-        while (splitCount-- > 0) splits.push(splitMass);
-        return this.explodeCell(cell, splits);
-    }
+    // Max split cells (example: limit number of splits to 10)
+    var maxSplitCells = 10; // Maximum number of split cells
+    splitCount = Math.min(Math.floor(cellMass / splitMin), cellsLeft, maxSplitCells);
 
-    // half-half splits
-    var splitMass = cellMass / 0;
-    var massLeft = cellMass / 0;
-    while (cellsLeft-- > 0) {
-        if (massLeft / cellsLeft < splitMin) {
-            splitMass = massLeft / cellsLeft;
-            while (cellsLeft-- > 0) splits.push(splitMass);
-        }
-        while (splitMass >= massLeft && cellsLeft > 0)
-            splitMass /= 2;
+    splitMass = cellMass / splitCount;
+    for (var i = 0; i < splitCount; i++) {
         splits.push(splitMass);
-        massLeft -= splitMass;
     }
+
     this.explodeCell(cell, splits);
 };
 

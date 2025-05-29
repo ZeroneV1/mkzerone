@@ -1,3 +1,7 @@
+var knownSkins = {};
+var loadedSkins = {};
+var skinList = [];
+
 (function() {
     "use strict";
     if (typeof WebSocket === 'undefined' || typeof DataView === 'undefined' ||
@@ -318,11 +322,11 @@
     var wsUrl = null,
         SKIN_URL = "https://mkskinsserver.glitch.me",
         USE_HTTPS = "https:" == window.location.protocol,
-        EMPTY_NAME = "An unnamed cell",
+        EMPTY_NAME = "An unnamed loser",
         QUADTREE_MAX_POINTS = 32,
         CELL_POINTS_MIN = 5,
         CELL_POINTS_MAX = 120,
-        VIRUS_POINTS = 100,
+        VIRUS_POINTS = 50,
         PI_2 = Math.PI * 2,
         SEND_254 = new Uint8Array([254, 6, 0, 0, 0]),
         SEND_255 = new Uint8Array([255, 1, 0, 0, 0]),
@@ -551,7 +555,7 @@
                     mod = !!(flags & 0x20);
 
                 if (server && name !== "SERVER") name = "[SERVER] " + name;
-                if (admin) name = "§4[ADMIN] " + name;
+                if (admin) name = "§5[OWNER] " + name;
                 if (mod) name = "§2[MOD] " + name;
                 var wait = Math.max(3000, 1000 + message.length * 150);
                 chat.waitUntil = syncUpdStamp - chat.waitUntil > 1000 ? syncUpdStamp + wait : chat.waitUntil + wait;
@@ -591,14 +595,23 @@
         writer.setStringUTF8(name);
         wsSend(writer);
     }
-    function sendChat(text) {
-        var writer = new Writer();
-        writer.setUint8(0x63);
-        writer.setUint8(0);
-        writer.setStringUTF8(text);
-        wsSend(writer);
+function sendChat(text) {
+    text = text.trim();
+    if (!text) return;
+    
+    // Add to history if different from last message
+    if (chat.history.length === 0 || text !== chat.history[0]) {
+        chat.history.unshift(text);
+        if (chat.history.length > 10) chat.history.pop();
     }
-
+    chat.historyPos = -1; // Reset history position
+    
+    var writer = new Writer();
+    writer.setUint8(0x63);
+    writer.setUint8(0);
+    writer.setStringUTF8(text);
+    wsSend(writer);
+}
     function gameReset() {
         cleanupObject(cells);
         cleanupObject(border);
@@ -636,12 +649,14 @@
         canvas: document.createElement("canvas"),
         teams: ["#F33", "#3F3", "#33F"]
     });
-    var chat = Object.create({
-        messages: [],
-        waitUntil: 0,
-        canvas: document.createElement("canvas"),
-        visible: false,
-    });
+   var chat = Object.create({
+      messages: [],
+      history: [],       // Stores message history
+      historyPos: -1,    // Current position in history
+      waitUntil: 0,
+      canvas: document.createElement("canvas"),
+      visible: false,
+  });
     var stats = Object.create({
         fps: 0,
         latency: NaN,
@@ -698,7 +713,7 @@
         gamemode: "",
         showSkins: true,
         showNames: true,
-        darkTheme: false,
+        darkTheme: true,
         showColor: true,
         showMass: false,
         _showChat: true,
@@ -770,15 +785,27 @@
         ctx.translate(-mainCanvas.width / 2, -mainCanvas.height / 2);
     }
 
-    function initSetting(id, elm) {
-        function simpleAssignListen(id, elm, prop) {
-            if (settings[id] !== "") elm[prop] = settings[id];
-            elm.addEventListener("change", function() {
-                requestAnimationFrame(function() {
-                    settings[id] = elm[prop];
-                });
+function initSetting(id, elm) {
+    function simpleAssignListen(id, elm, prop) {
+        if (settings[id] !== "") elm[prop] = settings[id];
+        elm.addEventListener("change", function() {
+            requestAnimationFrame(function() {
+                settings[id] = elm[prop];
+                storeSettings(); // Save settings to localStorage
+                updateButtonState(elm); // Update the button's visual state
             });
-        }
+        });
+    }
+
+    // Add click event listener for buttons
+    if (elm.tagName.toLowerCase() === "button") {
+        elm.addEventListener("click", function() {
+            settings[id] = !settings[id]; // Toggle the setting
+            storeSettings(); // Save settings to localStorage
+            updateButtonState(elm); // Update the button's visual state
+        });
+        updateButtonState(elm); // Initialize the button's visual state
+    } else {
         switch (elm.tagName.toLowerCase()) {
             case "input":
                 switch (elm.type.toLowerCase()) {
@@ -796,21 +823,35 @@
                 break;
         }
     }
-    function loadSettings() {
-        var text = localStorage.getItem("settings");
-        var obj = text ? JSON.parse(text) : settings;
-        for (var prop in settings) {
-            var elm = byId(prop.charAt(0) === "_" ? prop.slice(1) : prop);
-            if (elm) {
-                if(obj.hasOwnProperty(prop)) settings[prop] = obj[prop];
-                initSetting(prop, elm);
-            } else log.info("setting " + prop + " not loaded because there is no element for it.");
+}
+
+function loadSettings() {
+    var text = localStorage.getItem("settings");
+    var obj = text ? JSON.parse(text) : settings;
+    for (var prop in settings) {
+        var elm = byId(prop.charAt(0) === "_" ? prop.slice(1) : prop);
+        if (elm) {
+            if (obj.hasOwnProperty(prop)) settings[prop] = obj[prop];
+            initSetting(prop, elm);
+        } else {
+            log.info("setting " + prop + " not loaded because there is no element for it.");
         }
     }
-    function storeSettings() {
-        localStorage.setItem("settings", JSON.stringify(settings));
-    }
+}
 
+function storeSettings() {
+    localStorage.setItem("settings", JSON.stringify(settings));
+}
+
+// Helper function to update button visual state
+function updateButtonState(button) {
+    const settingId = button.id;
+    if (settings[settingId]) {
+        button.classList.add("enabled"); // Add the "enabled" class
+    } else {
+        button.classList.remove("enabled"); // Remove the "enabled" class
+    }
+}
     function request(url, callback, method, type) {
         if (!method) method = "GET";
         if (!type) type = "text";
@@ -1271,6 +1312,7 @@
     function sqDist(a, b) {
         return (a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y);
     }
+    
     function updateQuadtree() {
         var w = 1920 / camera.sizeScale;
         var h = 1080 / camera.sizeScale;
@@ -1428,13 +1470,13 @@
             this.name = nameAndSkin.name;
             this.setSkin(nameAndSkin.skin);
         },
-        setSkin: function(value) {
-            this.skin = (value && value[0] === "%" ? value.slice(1) : value) || this.skin;
-            if (this.skin === null || !knownSkins.hasOwnProperty(this.skin) || loadedSkins[this.skin])
-                return;
-            loadedSkins[this.skin] = new Image();
-            loadedSkins[this.skin].src = SKIN_URL + this.skin + ".png";
-        },
+           setSkin: function(value) {
+          this.skin = (value && value[0] === "%" ? value.slice(1) : value) || this.skin;
+          if (this.skin === null || !knownSkins.hasOwnProperty(this.skin) || loadedSkins[this.skin])
+              return;
+          loadedSkins[this.skin] = new Image();
+          loadedSkins[this.skin].src = this.skin;
+      },
         setColor: function(value) {
             if (!value) { log.warn("got no color"); return; }
             this.color = value;
@@ -1656,40 +1698,71 @@
         }
         ctx.restore();
     }
-    function keydown(event) {
-        var key = event.key.toLowerCase();
-        if (IE_KEYS.hasOwnProperty(key)) key = IE_KEYS[key]; // IE fix
-        if (key == "enter") {
-            if (escOverlayShown || !settings.showChat) return;
-            if (isTyping) {
-                chatBox.blur();
-                var text = chatBox.value;
-                if (text.length > 0) sendChat(text);
-                chatBox.value = "";
-            } else chatBox.focus();
-        } else if (pressed[key]) {
-            return;
-        } else if (key == "escape") {
-            pressed[key] = true;
-            escOverlayShown ? hideESCOverlay() : showESCOverlay();
+ function keydown(event) {
+    var key = event.key.toLowerCase();
+    if (IE_KEYS.hasOwnProperty(key)) key = IE_KEYS[key];
+
+    if (key === "enter") {
+        if (escOverlayShown || !settings.showChat) return;
+        if (isTyping) {
+            event.preventDefault();
+            var text = chatBox.value.trim();
+            if (text) sendChat(text);
+            chatBox.value = "";
+            chatBox.blur();
         } else {
-            if (isTyping || escOverlayShown) return;
-            if (pressed.hasOwnProperty(key)) pressed[key] = true;
-            var code = KEY_TO_CODE[key];
-            if (code !== undefined) wsSend(code);
-            if (key == "w") macroIntervalID = setInterval(function() {
-                wsSend(code);
-            }, macroCooldown);
-            if (key == "q") minionControlled = !minionControlled;
+            chatBox.focus();
         }
+    } 
+    // History navigation only when typing
+    else if (isTyping && (key === "arrowup" || key === "arrowdown")) {
+        event.preventDefault();
+        
+        if (key === "arrowup" && chat.historyPos < chat.history.length - 1) {
+            chat.historyPos++;
+            chatBox.value = chat.history[chat.historyPos];
+        } 
+        else if (key === "arrowdown" && chat.historyPos > 0) {
+            chat.historyPos--;
+            chatBox.value = chat.history[chat.historyPos];
+        }
+        else if (key === "arrowdown" && chat.historyPos === 0) {
+            chat.historyPos = -1;
+            chatBox.value = "";
+        }
+        
+        // Move cursor to end
+        chatBox.setSelectionRange(chatBox.value.length, chatBox.value.length);
     }
-    function keyup(event) {
-        var key = event.key.toLowerCase();
-        if (IE_KEYS.hasOwnProperty(key)) key = IE_KEYS[key]; // IE fix
-        if (pressed.hasOwnProperty(key)) pressed[key] = false;
-        if (key == "q") wsSend(UINT8_CACHE[19]);
-        if (key == "w") clearInterval(macroIntervalID);
+    // Rest of your existing keydown logic...
+    else if (pressed[key]) {
+        return;
     }
+    else if (key === "escape") {
+        pressed[key] = true;
+        escOverlayShown ? hideESCOverlay() : showESCOverlay();
+    }
+    else {
+        if (isTyping || escOverlayShown) return;
+        if (pressed.hasOwnProperty(key)) pressed[key] = true;
+        var code = KEY_TO_CODE[key];
+        if (code !== undefined) wsSend(code);
+        if (key === "w") macroIntervalID = setInterval(function() {
+            wsSend(code);
+        }, macroCooldown);
+        if (key === "q") minionControlled = !minionControlled;
+    }
+}
+  function keyup(event) {
+    var key = event.key.toLowerCase();
+    if (IE_KEYS.hasOwnProperty(key)) key = IE_KEYS[key];
+    
+    if (pressed.hasOwnProperty(key)) {
+        pressed[key] = false;
+        if (key === "q") wsSend(UINT8_CACHE[19]);
+        if (key === "w") clearInterval(macroIntervalID);
+    }
+}
     function handleScroll(event) {
         if (event.target !== mainCanvas) return;
         camera.userZoom *= event.deltaY > 0 ? 0.8 : 1.2;
@@ -1703,7 +1776,55 @@
         chatBox = byId("chat_textbox");
         soundsVolume = byId("soundsVolume");
         mainCanvas.focus();
+function loadSkins() {
+    fetch("https://mkskinsserver.glitch.me/skinList.json")
+        .then(response => response.json())
+        .then(data => {
+            skinList = data.skins;
+            skinList.forEach(skin => {
+                knownSkins[skin.label] = true;
+            });
+        })
+        .catch(err => console.error("Error loading skins:", err));
+}
 
+window.buildGallery = function() {
+    var galleryBody = byId("gallery-body");
+    galleryBody.innerHTML = "";
+    
+    skinList.forEach(skin => {
+        var skinElement = document.createElement("div");
+        skinElement.className = "skin-item";
+        skinElement.innerHTML = `
+            <img src="${skin.src}" alt="${skin.label}" onclick="changeSkin('${skin.label}')">
+            <div class="skin-name">${skin.label}</div>
+        `;
+        galleryBody.appendChild(skinElement);
+        
+        // Preload the skin image
+        if (!loadedSkins[skin.label]) {
+            loadedSkins[skin.label] = new Image();
+            loadedSkins[skin.label].src = skin.src;
+        }
+    });
+};
+
+window.changeSkin = function(skinName) {
+    byId("skin").value = skinName;
+    settings.skin = skinName;
+    byId("gallery").style.display = "none";
+    storeSettings();
+};
+
+window.openSkinsList = function() {
+    if (skinList.length === 0) {
+        loadSkins();
+        setTimeout(buildGallery, 500);
+    } else {
+        buildGallery();
+    }
+    byId("gallery").style.display = "block";
+};
         loadSettings();
         window.addEventListener("beforeunload", storeSettings);
         document.addEventListener("wheel", handleScroll, {passive: true});

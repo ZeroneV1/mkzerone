@@ -1,9 +1,18 @@
 var Logger = require('./Logger');
 var UserRoleEnum = require("../enum/UserRoleEnum");
+var Entity = require('../entity');
+// PlayerCommand.js
+var Commands = require('./CommandList'); // Correct relative path
 
 function PlayerCommand(gameServer, playerTracker) {
     this.gameServer = gameServer;
     this.playerTracker = playerTracker;
+}
+
+function getName(name) {
+    if (!name.length)
+        name = "An unnamed cell";
+    return name.trim();
 }
 
 module.exports = PlayerCommand;
@@ -47,44 +56,53 @@ PlayerCommand.prototype.userLogin = function (ip, password) {
 };
 
 var playerCommands = {
-    help: function (args) {
-        if (this.playerTracker.userRole == UserRoleEnum.MODER) {
-            this.writeLine("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-            this.writeLine("/skin %shark - change skin");
-            this.writeLine("/kill - self kill");
-            this.writeLine("/killall - kills everyone.")
-            this.writeLine("/help - this command list");
-            this.writeLine("/id - Gets your playerID");
-            this.writeLine("/mass - gives mass to yourself or to other player");
-            this.writeLine("/minion - gives yourself or other player minions");
-            this.writeLine("/minion remove - removes all of your minions or other players minions");
-            this.writeLine("/status - Shows Status of the Server");
-            this.writeLine("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-        }
-        if (this.playerTracker.userRole == UserRoleEnum.ADMIN) {
-            this.writeLine("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-            this.writeLine("/skin %shark - change skin");
-            this.writeLine("/kill - self kill");
-            this.writeLine("/killall - kills everyone.")
-            this.writeLine("/help - this command list");
-            this.writeLine("/id - Gets your playerID");
-            this.writeLine("/mass - gives mass to yourself or to other player");
-            this.writeLine("/spawnmass - gives yourself or other player spawnmass");
-            this.writeLine("/minion - gives yourself or other player minions");
-            this.writeLine("/minion remove - removes all of your minions or other players minions");
-            this.writeLine("/addbot - Adds AI Bots to the Server");
-            this.writeLine("/shutdown - SHUTDOWNS THE SERVER");
-            this.writeLine("/status - Shows Status of the Server");
-            this.writeLine("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+help: function (args) {
+    this.writeLine("~~~~~~~~~~~~ COMMAND LIST ~~~~~~~~~~~~");
+
+    let commandsPerRow = 3; // Number of columns per row
+    let availableCommands = [];
+
+    // Scan PlayerCommand.js for available commands dynamically
+    for (let cmd in playerCommands) {
+        let commandFunction = playerCommands[cmd].toString();
+
+        // Check if the command has role-based restrictions
+        if (!commandFunction.includes("this.playerTracker.userRole")) {
+            availableCommands.push(cmd); // No role restriction, available to all users
         } else {
-            this.writeLine("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-            this.writeLine("/skin %shark - change skin");
-            this.writeLine("/kill - self kill");
-            this.writeLine("/help - this command list");
-            this.writeLine("/id - Gets your playerID");
-            this.writeLine("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+            // Check role restriction
+            if (
+                (this.playerTracker.userRole == UserRoleEnum.ADMIN && commandFunction.includes("UserRoleEnum.ADMIN")) ||
+                (this.playerTracker.userRole == UserRoleEnum.MODER && commandFunction.includes("UserRoleEnum.MODER")) ||
+                (this.playerTracker.userRole == UserRoleEnum.USER && commandFunction.includes("UserRoleEnum.USER"))
+            ) {
+                availableCommands.push(cmd);
+            }
         }
-    },
+    }
+
+    // Find the longest command length
+    let maxCommandLength = Math.max(...availableCommands.map(cmd => cmd.length));
+
+    // Add padding to each command based on the longest command
+    let paddedCommands = availableCommands.map(cmd => cmd.padEnd(maxCommandLength));
+
+    // Print commands in a column format
+    let row = "";
+    for (let i = 0; i < paddedCommands.length; i++) {
+        row += "/" + paddedCommands[i] + "| "; // Add each command with a separator
+
+        // Break into a new row after 'commandsPerRow' commands
+        if ((i + 1) % commandsPerRow === 0 || i === paddedCommands.length - 1) {
+            this.writeLine(row.trim());
+            row = ""; // Reset row for next line
+        }
+    }
+
+    this.writeLine("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+},
+
+
 
 
     id: function (args) {
@@ -105,7 +123,7 @@ var playerCommands = {
     },
 
 
-        commitdie: function (args) {
+        die: function (args) {
         if (!this.playerTracker.cells.length) {
             this.writeLine("You cannot kill yourself, because you're still not joined to the game!");
             return;
@@ -148,72 +166,102 @@ var playerCommands = {
         this.writeLine("You killed everyone. (" + count + (" cells.)"));
     },
 
-    mass: function (args) {
-        if (this.playerTracker.userRole != UserRoleEnum.ADMIN && this.playerTracker.userRole != UserRoleEnum.MODER) {
-            this.writeLine("ERROR: access denied!");
+mass: function (args) {
+    if (this.playerTracker.userRole != UserRoleEnum.ADMIN) {
+        this.writeLine("ERROR: Admin only!");
+        return;
+    }
+
+    // Check if old format (ID first) was used accidentally
+    if (args[2] && isNaN(args[1])) {
+        this.writeLine("WARNING: Correct usage: /mass <mass> [ID|all]");
+        return;
+    }
+
+    const mass = parseInt(args[1]);
+    if (isNaN(mass) || mass <= 0) {
+        this.writeLine("ERROR: Missing/invalid mass! Usage: /mass <mass> [ID|all]");
+        return;
+    }
+
+    const size = Math.sqrt(mass * 100);
+    const target = args[2]; // Optional: ID or "all"
+
+    // Apply to self if no target
+    if (!target) {
+        for (const cell of this.playerTracker.cells) {
+            cell.setSize(size);
+        }
+        this.writeLine(`Set YOUR mass to ${mass}`);
+        return;
+    }
+
+    // Apply to all players
+    if (target.toLowerCase() === "all") {
+        let count = 0;
+        for (const client of this.gameServer.clients) {
+            for (const cell of client.playerTracker.cells) {
+                cell.setSize(size);
+            }
+            count++;
+        }
+        this.writeLine(`Set mass to ${mass} for ALL players (${count} affected)`);
+        return;
+    }
+
+    // Apply to specific player
+    const id = parseInt(target);
+    for (const client of this.gameServer.clients) {
+        if (client.playerTracker.pID === id) {
+            for (const cell of client.playerTracker.cells) {
+                cell.setSize(size);
+            }
+            this.writeLine(`Set ${client.playerTracker._name}'s mass to ${mass}`);
             return;
         }
-        var mass = parseInt(args[1]);
-        var id = parseInt(args[2]);
-        var size = Math.sqrt(mass * 100);
+    }
 
-        if (isNaN(mass)) {
-            this.writeLine("ERROR: missing mass argument!");
-            return;
-        }
-
-        if (isNaN(id)) {
-            this.writeLine("Warn: missing ID arguments. This will change your mass.");
-            for (var i in this.playerTracker.cells) {
-                this.playerTracker.cells[i].setSize(size);
-            }
-            this.writeLine("Set mass of " + this.playerTracker._name + " to " + size * size / 100);
-        } else {
-            for (var i in this.gameServer.clients) {
-                var client = this.gameServer.clients[i].playerTracker;
-                if (client.pID == id) {
-                    for (var j in client.cells) {
-                        client.cells[j].setSize(size);
-                    }
-                    this.writeLine("Set mass of " + client._name + " to " + size * size / 100);
-                    var text = this.playerTracker._name + " changed your mass to " + size * size / 100;
-                    this.gameServer.sendChatMessage(null, client, text);
-                    break;
-                }
-            }
-        }
-
-    },
+    this.writeLine(`ERROR: Player ID ${id} not found!`);
+},
     spawnmass: function (args) {
-        if (this.playerTracker.userRole != UserRoleEnum.ADMIN) {
-            this.writeLine("ERROR: access denied!");
+    if (this.playerTracker.userRole != UserRoleEnum.ADMIN) {
+        this.writeLine("ERROR: Admin only!");
+        return;
+    }
+
+    // Check if old format (ID first) was used accidentally
+    if (args[2] && isNaN(args[1])) {
+        this.writeLine("WARNING: Correct usage: /spawnmass <mass> [ID]");
+        return;
+    }
+
+    const mass = parseInt(args[1]);
+    if (isNaN(mass) || mass <= 0) {
+        this.writeLine("ERROR: Missing/invalid mass! Usage: /spawnmass <mass> [ID]");
+        return;
+    }
+
+    const size = Math.sqrt(mass * 100);
+    const id = parseInt(args[2]);
+
+    // Apply to self if no ID
+    if (!args[2]) {
+        this.playerTracker.spawnmass = size;
+        this.writeLine(`Set YOUR spawn mass to ${mass}`);
+        return;
+    }
+
+    // Apply to target player
+    for (const client of this.gameServer.clients) {
+        if (client.playerTracker.pID === id) {
+            client.playerTracker.spawnmass = size;
+            this.writeLine(`Set ${client.playerTracker._name}'s spawn mass to ${mass}`);
             return;
         }
-        var mass = parseInt(args[1]);
-        var id = parseInt(args[2]);
-        var size = Math.sqrt(mass * 100);
+    }
 
-        if (isNaN(mass)) {
-            this.writeLine("ERROR: missing mass argument!");
-            return;
-        }
-
-        if (isNaN(id)) {
-            this.playerTracker.spawnmass = size;
-            this.writeLine("Warn: missing ID arguments. This will change your spawnmass.");
-            this.writeLine("Set spawnmass of " + this.playerTracker._name + " to " + size * size / 100);
-        } else {
-            for (var i in this.gameServer.clients) {
-                var client = this.gameServer.clients[i].playerTracker;
-                if (client.pID == id) {
-                    client.spawnmass = size;
-                    this.writeLine("Set spawnmass of " + client._name + " to " + size * size / 100);
-                    var text = this.playerTracker._name + " changed your spawn mass to " + size * size / 100;
-                    this.gameServer.sendChatMessage(null, client, text);
-                }
-            }
-        }
-    },
+    this.writeLine(`ERROR: Player ID ${id} not found!`);
+},
     
     
         pl: function(args) {
@@ -241,81 +289,71 @@ this.writeLine(data);
     
     
     
-    minion: function (args) {
-        if (this.playerTracker.userRole != UserRoleEnum.ADMIN && this.playerTracker.userRole != UserRoleEnum.MODER) {
-            this.writeLine("ERROR: access denied!");
+ minion: function (args) {
+    if (this.playerTracker.userRole != UserRoleEnum.ADMIN) {
+        this.writeLine("ERROR: Admin only!");
+        return;
+    }
+
+    // Check if old format (ID first) was used accidentally
+    if (args[2] && isNaN(args[1])) {
+        this.writeLine("WARNING: Correct usage: /minion <count> [ID]");
+        return;
+    }
+
+    const count = parseInt(args[1]) || 1;
+    const id = parseInt(args[2]);
+
+    // Apply to self if no ID
+    if (!args[2]) {
+        this.playerTracker.minionControl = true;
+        for (let i = 0; i < count; i++) {
+            this.gameServer.bots.addMinion(this.playerTracker);
+        }
+        this.writeLine(`Added ${count} minion(s) to YOUR control`);
+        return;
+    }
+
+    // Apply to target player
+    for (const client of this.gameServer.clients) {
+        if (client.playerTracker.pID === id) {
+            client.playerTracker.minionControl = true;
+            for (let i = 0; i < count; i++) {
+                this.gameServer.bots.addMinion(client.playerTracker);
+            }
+            this.writeLine(`Added ${count} minion(s) to ${client.playerTracker._name}'s control`);
             return;
         }
-        var add = args[1];
-        var id = parseInt(args[2]);
-        var player = this.playerTracker;
+    }
 
-        /** For you **/
-        if (isNaN(id)) {
-            this.writeLine("Warn: missing ID arguments. This will give you minions.");
-            // Remove minions
-            if (player.minionControl == true && add == "remove") {
-                player.minionControl = false;
-                player.miQ = 0;
-                this.writeLine("Succesfully removed minions for " + player._name);
-                // Add minions
-            } else {
-                player.minionControl = true;
-                // Add minions for self
-                if (isNaN(parseInt(add))) add = 1;
-                for (var i = 0; i < add; i++) {
-                    this.gameServer.bots.addMinion(player);
-                }
-                this.writeLine("Added " + add + " minions for " + player._name);
-            }
+    this.writeLine(`ERROR: Player ID ${id} not found!`);
+},
+  
+dm: function (args) {
+    var player = this.playerTracker;
 
-        } else {
-            /** For others **/
-            for (var i in this.gameServer.clients) {
-                var client = this.gameServer.clients[i].playerTracker;
-                if (client.pID == id) {
+    // Check if the player has the necessary role
+    if (this.playerTracker.userRole != UserRoleEnum.ADMIN) {
+        this.writeLine("ERROR: access denied!");
+        return;
+    }
 
-                    // Prevent the user from giving minions, to minions
-                    if (client.isMi) {
-                        Logger.warn("You cannot give minions to a minion!");
-                        return;
-                    };
+    var id = args[1];
+    var msg = args[2];
 
-                    // Remove minions
-                    if (client.minionControl == true) {
-                        client.minionControl = false;
-                        client.miQ = 0;
-                        this.writeLine("Succesfully removed minions for " + client._name);
-                        var text = this.playerTracker._name + " removed all off your minions.";
-                        this.gameServer.sendChatMessage(null, client, text);
-                        // Add minions
-                    } else {
-                        client.minionControl = true;
-                        // Add minions for client
-                        if (isNaN(add)) add = 1;
-                        for (var i = 0; i < add; i++) {
-                            this.gameServer.bots.addMinion(client);
-                        }
-                        this.writeLine("Added " + add + " minions for " + client._name);
-                        var text = this.playerTracker._name + " gave you " + add + " minions.";
-                        this.gameServer.sendChatMessage(null, client, text);
-                    }
-                }
-            }
-        }
-    },
-    
-    dm: function (args) {
-                var id = (args[1]);
-        var msg = (args[2]);
-        var player = this.playerTracker;
-            if (id.length < 1) {
-            this.writeLine("ERROR: missing password argument!");
-            return;
-        }
-        
-this.gameServer.sendChatMessage(player, id, msg);
-    },
+    if (id.length < 1) {
+        this.writeLine("ERROR: missing id argument!");
+        return;
+    }
+
+    if (msg.length < 1) {
+        this.writeLine("ERROR: missing message argument!");
+        return;
+    }
+
+    // Send the direct message
+    this.gameServer.sendChatMessage(player, id, msg);
+},
 
     
     addbot: function (args) {
@@ -390,12 +428,426 @@ this.gameServer.sendChatMessage(player, id, msg);
         Logger.warn("SHUTDOWN REQUEST FROM " + this.playerTracker.socket.remoteAddress + " as " + this.playerTracker.userAuth);
         process.exit(0);
     },
-    restart: function (args) {
-        if (this.playerTracker.userRole != UserRoleEnum.ADMIN) {
-            this.writeLine("ERROR: access denied!");
+    speed: function (args) {
+    if (this.playerTracker.userRole != UserRoleEnum.ADMIN) {
+        this.writeLine("ERROR: Admin only!");
+        return;
+    }
+
+    // Check if old format (ID first) was used accidentally
+    if (args[2] && isNaN(args[1])) {
+        this.writeLine("WARNING: Correct usage: /speed <multiplier> [ID]");
+        return;
+    }
+
+    const speed = parseFloat(args[1]);
+    if (isNaN(speed) || speed <= 0) {
+        this.writeLine("ERROR: Missing/invalid speed! Usage: /speed <multiplier> [ID]");
+        return;
+    }
+
+    const id = parseInt(args[2]);
+
+    // Apply to self if no ID
+    if (!args[2]) {
+        this.playerTracker.customspeed = speed;
+        this.writeLine(`Set YOUR speed to ${speed}x`);
+        return;
+    }
+
+    // Apply to target player
+    for (const client of this.gameServer.clients) {
+        if (client.playerTracker.pID === id) {
+            client.playerTracker.customspeed = speed;
+            this.writeLine(`Set ${client.playerTracker._name}'s speed to ${speed}x`);
             return;
         }
-        Logger.warn("RESTART REQUEST FROM " + this.playerTracker.socket.remoteAddress + " as " + this.playerTracker.userAuth);
-        process.exit(3);
     }
+
+    this.writeLine(`ERROR: Player ID ${id} not found!`);
+},
+    rainbow: function (args) {
+        // Check if the player is an admin
+        if (this.playerTracker.userRole !== UserRoleEnum.ADMIN) {
+            this.writeLine("ERROR: You must be an admin to use this command!");
+            return;
+        }
+
+        // Check if the player has cells
+        if (this.playerTracker.cells.length === 0) {
+            this.writeLine("You need to have at least one cell to use this command!");
+            return;
+        }
+
+        // Rainbow effect duration (10 seconds)
+        const duration = 10000; // 10 seconds in milliseconds
+        const interval = 100; // Change color every 1 second
+        let elapsedTime = 0;
+
+        // Function to generate a random color
+        const getRandomColor = () => {
+            const r = Math.floor(Math.random() * 256);
+            const g = Math.floor(Math.random() * 256);
+            const b = Math.floor(Math.random() * 256);
+            return { r, g, b };
+        };
+
+        // Start the rainbow effect
+        const rainbowInterval = setInterval(() => {
+            // Generate a random color
+            const newColor = getRandomColor();
+
+            // Apply the color to all the player's cells
+            for (const cell of this.playerTracker.cells) {
+                cell.color = newColor;
+            }
+
+            // Update the elapsed time
+            elapsedTime += interval;
+
+            // Stop the effect after the duration is over
+            if (elapsedTime >= duration) {
+                clearInterval(rainbowInterval);
+                this.writeLine("Rainbow effect ended!");
+            }
+        }, interval);
+
+        this.writeLine("Rainbow effect started! Your cells will change colors for 10 seconds.");
+    },
+
+   split: function (args) {
+    // Check if the user has the ADMIN role
+    if (this.playerTracker.userRole != UserRoleEnum.ADMIN) {
+        this.writeLine("ERROR: access denied!");
+        return;
+    }
+
+    // Check if the command has the correct number of arguments
+    if (args.length < 2) {
+        this.writeLine("ERROR: Please specify a player ID or 'all'!");
+        return;
+    }
+
+    // Handle /split all command
+    if (args[1].toLowerCase() === "all") {
+        var count = 0;
+        for (var i = 0; i < this.gameServer.clients.length; i++) {
+            var client = this.gameServer.clients[i].playerTracker;
+            if (client.pID >= 1 && client.pID <= 100 && client.cells.length) { // Only apply to IDs 1-100 with cells
+                this.gameServer.splitCells(client);
+                count++;
+            }
+        }
+        if (count === 0) {
+            this.writeLine("Warn: No players with IDs 1-100 found or all are dead!");
+        } else {
+            this.writeLine("Successfully split all players with IDs 1-100");
+        }
+        return;
+    }
+
+    // Parse the player ID
+    var id = parseInt(args[1]);
+    if (isNaN(id)) {
+        this.writeLine("ERROR: Invalid player ID!");
+        return;
+    }
+
+    // Find the player with the specified ID
+    var targetPlayer = null;
+    for (var i = 0; i < this.gameServer.clients.length; i++) {
+        var client = this.gameServer.clients[i].playerTracker;
+        if (client.pID == id) {
+            targetPlayer = client;
+            break;
+        }
+    }
+
+    // Check if the player was found
+    if (!targetPlayer) {
+        this.writeLine("ERROR: Player with ID " + id + " not found!");
+        return;
+    }
+
+    // Check if the player has cells
+    if (!targetPlayer.cells.length) {
+        this.writeLine("ERROR: Player with ID " + id + " is either dead or not playing!");
+        return;
+    }
+
+    // Split the player's cells
+    this.gameServer.splitCells(targetPlayer);
+
+    // Notify the admin that the command was successful
+    this.writeLine("Successfully split player with ID " + id);
+},
+  freeze: function (args) {
+    // Check if the user has the ADMIN role
+    if (this.playerTracker.userRole != UserRoleEnum.ADMIN) {
+        this.writeLine("ERROR: access denied!");
+        return;
+    }
+
+    // Check if the command has the correct number of arguments
+    if (args.length < 2) {
+        this.writeLine("ERROR: Please specify a player ID or 'all'!");
+        return;
+    }
+
+    // Handle /freeze all command
+    if (args[1].toLowerCase() === "all") {
+        var count = 0;
+        for (var i = 0; i < this.gameServer.clients.length; i++) {
+            var client = this.gameServer.clients[i].playerTracker;
+            if (client.pID >= 1 && client.pID <= 100) { // Only apply to IDs 1-100
+                client.frozen = !client.frozen; // Toggle freeze state
+                count++;
+            }
+        }
+        if (count === 0) {
+            this.writeLine("Warn: No players with IDs 1-100 found!");
+        } else {
+            this.writeLine("Successfully toggled freeze state for all players with IDs 1-100");
+        }
+        return;
+    }
+
+    // Parse the player ID
+    var id = parseInt(args[1]);
+    if (isNaN(id)) {
+        this.writeLine("ERROR: Invalid player ID!");
+        return;
+    }
+
+    // Find the player with the specified ID
+    var targetPlayer = null;
+    for (var i = 0; i < this.gameServer.clients.length; i++) {
+        var client = this.gameServer.clients[i].playerTracker;
+        if (client.pID == id) {
+            targetPlayer = client;
+            break;
+        }
+    }
+
+    // Check if the player was found
+    if (!targetPlayer) {
+        this.writeLine("ERROR: Player with ID " + id + " not found!");
+        return;
+    }
+
+    // Toggle the frozen state
+    targetPlayer.frozen = !targetPlayer.frozen;
+
+    // Notify the admin
+    this.writeLine("Player with ID " + id + " is now " + (targetPlayer.frozen ? "frozen" : "unfrozen"));
+},
+rebirth: function (args) {
+    // Ensure Entity is defined
+    if (typeof Entity === 'undefined') {
+        console.error("Entity is not defined!");
+        return;
+    }
+
+    // Check if the player is already in the process of rebirthing
+    if (this.playerTracker.isRebirthing) {
+        this.writeLine("You are already in the process of rebirthing!");
+        return;
+    }
+
+    // Calculate the player's total mass
+    let totalMass = 0;
+    for (const cell of this.playerTracker.cells) {
+        totalMass += cell._mass; // Sum up the mass of all cells
+    }
+
+    // Ensure the player has a valid mass
+    if (totalMass <= 0) {
+        this.writeLine("You don't have enough mass to rebirth.");
+        return;
+    }
+
+    // Mark the player as rebirthing
+    this.playerTracker.isRebirthing = true;
+
+    // Notify the player that rebirth has started
+    this.writeLine("Rebirth started! Hold on for 10 seconds...");
+
+    // Start the 10-second delay
+    const rebirthDelay = 10000; // 10 seconds in milliseconds
+
+    setTimeout(() => {
+        // Mark the player as no longer rebirthing
+        this.playerTracker.isRebirthing = false;
+
+        // Calculate the speed multiplier based on mass
+        const speedMultiplier = 1 + (totalMass / 100000);
+
+        // Update the player's custom speed by adding the new multiplier to the existing one
+        if (!this.playerTracker.customspeed) {
+            this.playerTracker.customspeed = 1; // Initialize if not set
+        }
+        this.playerTracker.customspeed += (speedMultiplier - 1); // Add the difference to accumulate
+
+        // Override getSpeed function from PlayerCell
+        Entity.PlayerCell.prototype.getSpeed = function (dist) {
+            var speed = 2.2 * Math.pow(this._size, -0.439);
+            speed = this.owner.customspeed ?
+                speed * 40 * this.owner.customspeed : // Set by command
+                speed * 40 * this.gameServer.config.playerSpeed;
+            return Math.min(dist, speed) / dist;
+        };
+
+        // Kill all the player's cells (simulate rebirth)
+        while (this.playerTracker.cells.length > 0) {
+            const cell = this.playerTracker.cells[0];
+            this.gameServer.removeNode(cell);
+        }
+
+        // Notify the player of the new speed multiplier
+        this.writeLine(`You have rebirthed! Your speed multiplier is now ${this.playerTracker.customspeed.toFixed(4)}.`);
+    }, rebirthDelay);
+},
+explode: function (args) {
+    if (this.playerTracker.userRole != UserRoleEnum.ADMIN) {
+        this.writeLine("ERROR: Admin only!");
+        return;
+    }
+
+    // Handle /explode all
+    if (args[1] && args[1].toLowerCase() === "all") {
+        let explodedCount = 0;
+        for (const client of this.gameServer.clients) {
+            if (client.playerTracker.cells.length > 0) {
+                // Explode each cell
+                for (const cell of client.playerTracker.cells) {
+                    while (cell._size > this.gameServer.config.playerMinSize) {
+                        const angle = 6.28 * Math.random();
+                        const loss = this.gameServer.config.ejectSizeLoss;
+                        const size = cell.radius - loss * loss;
+                        cell.setSize(Math.sqrt(size));
+
+                        // Create ejected mass
+                        const pos = {
+                            x: cell.position.x + angle,
+                            y: cell.position.y + angle
+                        };
+                        const ejected = new Entity.EjectedMass(this.gameServer, null, pos, this.gameServer.config.ejectSize);
+                        ejected.color = cell.color;
+                        ejected.setBoost(this.gameServer.config.ejectVelocity * Math.random(), angle);
+                        this.gameServer.addNode(ejected);
+                    }
+                    cell.setSize(this.gameServer.config.playerMinSize);
+                }
+                explodedCount++;
+            }
+        }
+        this.writeLine(`Success: Exploded all players (${explodedCount} affected)`);
+        return;
+    }
+
+    // If no args, explode self
+    if (!args[1]) {
+        const client = this.playerTracker;
+        if (client.cells.length === 0) {
+            this.writeLine("ERROR: You have no cells to explode!");
+            return;
+        }
+
+        for (const cell of client.cells) {
+            while (cell._size > this.gameServer.config.playerMinSize) {
+                const angle = 6.28 * Math.random();
+                const loss = this.gameServer.config.ejectSizeLoss;
+                const size = cell.radius - loss * loss;
+                cell.setSize(Math.sqrt(size));
+
+                const pos = {
+                    x: cell.position.x + angle,
+                    y: cell.position.y + angle
+                };
+                const ejected = new Entity.EjectedMass(this.gameServer, null, pos, this.gameServer.config.ejectSize);
+                ejected.color = cell.color;
+                ejected.setBoost(this.gameServer.config.ejectVelocity * Math.random(), angle);
+                this.gameServer.addNode(ejected);
+            }
+            cell.setSize(this.gameServer.config.playerMinSize);
+        }
+        this.writeLine("Success: Your cells have been exploded!");
+        return;
+    }
+
+    // Handle specific player ID
+    const id = parseInt(args[1]);
+    if (isNaN(id)) {
+        this.writeLine("ERROR: Invalid input! Usage: /explode [all|ID]");
+        return;
+    }
+
+    for (const client of this.gameServer.clients) {
+        if (client.playerTracker.pID === id) {
+            if (client.playerTracker.cells.length === 0) {
+                this.writeLine(`ERROR: Player ${id} has no cells to explode!`);
+                return;
+            }
+
+            for (const cell of client.playerTracker.cells) {
+                while (cell._size > this.gameServer.config.playerMinSize) {
+                    const angle = 6.28 * Math.random();
+                    const loss = this.gameServer.config.ejectSizeLoss;
+                    const size = cell.radius - loss * loss;
+                    cell.setSize(Math.sqrt(size));
+
+                    const pos = {
+                        x: cell.position.x + angle,
+                        y: cell.position.y + angle
+                    };
+                    const ejected = new Entity.EjectedMass(this.gameServer, null, pos, this.gameServer.config.ejectSize);
+                    ejected.color = cell.color;
+                    ejected.setBoost(this.gameServer.config.ejectVelocity * Math.random(), angle);
+                    this.gameServer.addNode(ejected);
+                }
+                cell.setSize(this.gameServer.config.playerMinSize);
+            }
+            this.writeLine(`Success: Exploded ${client.playerTracker._name}'s cells!`);
+            return;
+        }
+    }
+
+    this.writeLine(`ERROR: Player ID ${id} not found!`);
+},
+  botlist: function(args) {
+    if (this.playerTracker.userRole != UserRoleEnum.ADMIN && 
+        this.playerTracker.userRole != UserRoleEnum.MODER) {
+        this.writeLine("ERROR: access denied!");
+        return;
+    }
+
+    // Get all bot players using two detection methods:
+    const bots = this.gameServer.clients.filter(client => {
+        // Method 1: Check isBot flag
+        if (client.playerTracker.isBot) return true;
+        
+        // Method 2: Check for FakeSocket (backup detection)
+        if (client.constructor.name === 'FakeSocket') return true;
+        
+        return false;
+    });
+
+    if (bots.length === 0) {
+        this.writeLine("No bots currently connected (or detection failed)");
+        return;
+    }
+
+    // Format the output
+    bots.forEach(bot => {
+        const botInfo = bot.playerTracker;
+        let personality = botInfo.personality || "UNKNOWN";
+        let skill = botInfo.skillLevel || "?";
+        
+        this.writeLine(`ID:${botInfo.pID} lvl:${skill} type:${personality}`);
+    });
+
+    this.writeLine(`Total bots: ${bots.length}`);
+    this.writeLine(`Total players: ${this.gameServer.clients.length}`);
+}
+    // Other commands...
 };
