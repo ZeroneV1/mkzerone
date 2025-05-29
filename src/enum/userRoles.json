@@ -7,9 +7,15 @@
     },
     {
         "ip":"*",
-        "password":"ModeratorPassword732",
+        "password":"34er",
         "role":"MODER",
-        "name":"Local Moderator"
+        "name":"Moderator"
+    },
+      {
+        "ip":"*",
+        "password":"12qq",
+        "role":"OWNER",
+        "name":"Founder"
     },
     {
         "ip":"127.0.0.1",

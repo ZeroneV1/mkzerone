@@ -1,86 +1,103 @@
-
 <!DOCTYPE html>
 <html>
-<!--MK Games Client-->
-<!--Made by MK Games for other game sites!  Feel free to use this code on your site-->
 
-
-
-  <head>
+<head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="Eat cells smaller than you and don't get eaten by the bigger ones, as an MMO">
-<meta name="mk-key" content="6944CD3A45E">
+    <meta name="mk-key" content="6944CD3A45E">
     <meta name="keywords" content="agario, agar, io, cell, cells, virus, bacteria, blob, game, games, web game, html5, fun, flash">
     <meta name="robots" content="index, follow">
     <meta name="viewport" content="minimal-ui, width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
 
-    <title>MK Agar.io Private Server 1.2</title>
+    <title>Canvas</title>
 
-    <link id="favicon" rel="icon" type="image/png" href="favicon.png">
+    <link id="favicon" rel="icon" type="image/png" href="https://du11hjcvx0uqb.cloudfront.net/dist/images/favicon-e10d657a73.ico">
     <link href="https://fonts.googleapis.com/css?family=Ubuntu:700" rel="stylesheet" type="text/css">
     <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap.min.css" rel="stylesheet">
-  <link href="index.css" rel="stylesheet">
-  <link href="https://sites.google.com/site/mkagariounblocked/home/agario/assets/css/gallery.css" rel="stylesheet">
-  <script src="quadtree.js"></script>
-  <script src="main_out_privateserver.js"></script>
-
-
+    <link href="index.css" rel="stylesheet">
+    <script src="quadtree.js"></script>
+    <script src="main_out_privateserver.js"></script>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            height: 100%;
+        }
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+        #connecting, #overlays {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+        }
+    </style>
 </head>
 
 <body>
-    <div id="gallery" onclick="if (event.target == this) this.hide()" style="display: none;">
+    <div id="gallery" onclick="if (event.target == this) this.style.display = 'none'" style="display: none;">
         <div id="gallery-content">
-            <div id="gallery-header">Skins</div>
+            <div id="gallery-header">Skins Gallery</div>
+            <button class="close-btn" onclick="byId('gallery').style.display = 'none'">×</button>
             <div id="gallery-body"></div>
         </div>
     </div>
+    
     <div id="overlays" style="display: none;">
         <div id="helloDialog">
             <div class="form-group">
-                <h2 id="title">Zerones Agario Server</h2>
-              
+                <h2 id="title"> Flux Agario</h2>
             </div>
 
             <div class="form-group">
                 <input id="nick" class="form-control" placeholder="Nickname" maxlength="25">
-                <input id="skin" class="form-control"  placeholder="Skin Name">
-  
+                <input id="skin" class="form-control" placeholder="Skin Name">
             </div>
 
             <button id="play-btn" class="btn btn-play btn-primary btn-needs-server">Play</button>
-            <button id="spectate-btn" onclick="spectate()" class="btn btn-warning btn-spectate btn-needs-server glyphicon glyphicon-eye-open"></button>
-            <!--<button id="gallery-btn" onclick="openSkinsList()" class="btn btn-play btn-primary btn-needs-server btn-info">Skins Gallery</button>-->
+      <button id="spectate-btn" onclick="spectate()" class="btn btn-warning btn-spectate btn-needs-server">Spectate</button>
 
- <div id="settings" class="checkbox">
+            <div id="settings">
                 <div style="margin: 6px;">
-                    <label><input id="showSkins" type="checkbox">Skins</label>
-                    <label><input id="showNames" type="checkbox">Names</label>
-                    <label><input id="darkTheme" type="checkbox">Dark Theme</label>
-                    <label><input id="showColor" type="checkbox">Color</label>
-                    <label><input id="showMass" type="checkbox">Mass</label>
-                    <label><input id="showChat" type="checkbox">Chat</label>
-                    <label><input id="showMinimap" type="checkbox">Minimap</label>
-                    <label><input id="showPosition" type="checkbox">Position</label>
-                    <label><input id="showBorder" type="checkbox">Border</label>
-                    <label><input id="showGrid" type="checkbox">Grid</label>
-                    <label><input id="moreZoom" type="checkbox">Zoom+ (Zoomout)</label>
-                    <label><input id="fillSkin" type="checkbox">Fill Skin</label>
-                     <label><input id="backgroundSectors" type="checkbox">Background Sectors</label>
-                  <label><input id="jellyPhysics" type="checkbox">Wobble</label>
-                    <label>
-                        <input id="playSounds" type="checkbox">Sounds
-                        <input id="soundsVolume" type="range" min="0" max="1" step="any">
-                    </label>
+                    <button id="showSkins" class="settings-button" onclick="openSkinsList()">Skins</button>
+                    <button id="showNames" class="settings-button">Names</button>
+                    <button id="darkTheme" class="settings-button">Dark Theme</button>
+                    <button id="showColor" class="settings-button">Color</button>
+                    <button id="showMass" class="settings-button">Mass</button>
+                    <button id="showChat" class="settings-button">Chat</button>
+                    <button id="showMinimap" class="settings-button">Minimap</button>
+                    <button id="showPosition" class="settings-button">Position</button>
+                    <button id="showBorder" class="settings-button">Border</button>
+                    <button id="showGrid" class="settings-button">Grid</button>
+                    <button id="moreZoom" class="settings-button">Zoom+ (Zoomout)</button>
+                    <button id="fillSkin" class="settings-button">Fill Skin</button>
+                    <button id="backgroundSectors" class="settings-button">Background Sectors</button>
+                    <button id="jellyPhysics" class="settings-button">Wobble</button>
+                    <button id="playSounds" class="settings-button">Sounds</button>
+                    <input id="soundsVolume" type="range" min="0" max="1" step="any">
                 </div>
             </div>
+          
+          <div id="spectateInfo" style="position: fixed; top: 70px; left: 10px; color: #FFF; font-family: Ubuntu; font-size: 16px; z-index: 100;"></div>
+
             <div id="instructions">
                 <hr>
                 <center>
                     <span class="text-muted">
                         Move your mouse to control your cell<br>
+                        Teaming is <b>NOT</b> Allowed! <br>
                         Press <b>Space</b> to split<br>
                         Press <b>W</b> to eject some mass<br>
                     </span>
@@ -89,24 +106,75 @@
 
             <hr>
             <div id="footer">
-                <span class="text-muted">Have fun!</span>
+                <span class="text-muted">Friendly Reminder: all custom letters and emojis are BANABLE</span>
+            </div>
+        </div>
+
+        <!-- Left Panel -->
+        <div id="leftPanel">
+            <h2><span style="color: Green;">News</span> - 3/14 </h2>
+            <p> - <span style="color: Red;">Updated</span> News and Info tab</p>
+            <p> - <span style="color: Red;">Updated</span> Leaderboard to show player IDs</p>
+            <p> - <span style="color: Green;">Changed</span> map size and virus/microcell spawn rate</p>
+        </div>
+
+        <!-- Right Panel -->
+        <div id="rightPanel">
+            <button id="playerButton" class="btn" style="display: none;">Player</button>
+
+            <div id="infoTab">
+                <h2><span style="color: Green;">Info</span></h2>
+                <p> <span style="color: Purple;">Flux Agario</span> started production in January 2025...</p>
+                <p style="font-size: 18px; font-weight: bold; color: gold;"> Commands:</p>
+                <p> <span style="color: gold;">/help</span> [Shows a list of commands]</p>
+                <p> <span style="color: gold;">/id</span> [shows a players id] </p>
+                <p> <span style="color: gold;">/rebirth</span> [Kills the player but adds speed] </p>
+                <p> <span style="color: gold;">/skin</span> [Change your skin] </p>
+                <p> <span style="color: gold;">/die</span> [kills the player] </p>
             </div>
 
+            <div id="adminTab" style="display: none;">
+                <h2><span style="color: red;">Admin Info</span></h2>
+                <p>Admins are meant to moderate the game...</p>
+                <p><span style="color: gold;">Commands:</span> </p>
+                <p><span style="color: gold;">/bc</span> [broadcasts a message] </p>
+                <p><span style="color: gold;">/mass</span> [sets a players mass] </p>
+                <p><span style="color: gold;">/speed</span> [sets a players speed] </p>
+            </div>
         </div>
     </div>
 
     <div id="connecting">
         <div id="connecting-content">
             <h2>Connecting</h2>
-            <p> If you cannot connect to the servers, check if you have some anti virus or firewall blocking the connection. The servers can take up to 30 seconds to start. If it does not load change servers.</p>
+            <p> If you cannot connect to the servers, check if you have some anti virus or firewall blocking the connection.</p>
         </div>
     </div>
 
- 
-
-    <canvas id="canvas" width="800" height="600"></canvas>
+    <canvas id="canvas"></canvas>
     <input type="text" id="chat_textbox" placeholder="Press enter to chat" maxlength="200">
     <div style="font-family:'Ubuntu'">&nbsp;</div>
+
+    <script>
+        // Function to show the Admin tab and hide the Info tab
+        function showAdminTab() {
+            document.getElementById('infoTab').style.display = 'none';
+            document.getElementById('adminTab').style.display = 'block';
+            document.getElementById('adminButton').style.display = 'none';
+            document.getElementById('playerButton').style.display = 'block';
+        }
+
+        // Function to show the Info tab and hide the Admin tab
+        function showInfoTab() {
+            document.getElementById('adminTab').style.display = 'none';
+            document.getElementById('infoTab').style.display = 'block';
+            document.getElementById('playerButton').style.display = 'none';
+            document.getElementById('adminButton').style.display = 'block';
+        }
+
+        // Add event listeners
+        document.getElementById("adminButton").addEventListener("click", showAdminTab);
+        document.getElementById("playerButton").addEventListener("click", showInfoTab);
+    </script>
 </body>
 </html>
-

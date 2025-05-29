@@ -88,8 +88,8 @@ function GameServer() {
         playerBotGrow: 0, // Cells greater than 625 mass cannot grow from cells under 17 mass (set to 1 to disable)
 
         /** BORDER **/
-        borderWidth: 14142.135623730952, // Map border size (Vanilla value: 14142)
-        borderHeight: 14142.135623730952, // Map border size (Vanilla value: 14142)
+        borderWidth: 1142.135623730952, // Map border size (Vanilla value: 14142)
+        borderHeight: 1142.135623730952, // Map border size (Vanilla value: 14142)
 
         /** FOOD **/
         foodMinSize: 10, // Minimum food size (vanilla 10)
@@ -399,6 +399,24 @@ GameServer.prototype.checkIpBan = function (ipAddress) {
         return true;
     }
     return false;
+};
+GameServer.prototype.splitOnVirusEaten = function (client, parent) {
+    if (parent._mass <= 460) return; // Only split if mass is greater than 460
+
+    var totalMass = parent._mass;
+    var smallCellMass = totalMass / 32; // Each small cell is 1/32 of the original mass
+    var bigCellMass = totalMass - (smallCellMass * 15); // Remaining mass for the big cell
+
+    // Set the big cell's mass
+    parent.setSize(Math.sqrt(bigCellMass * 100));
+
+    // Create 15 small cells
+    for (var i = 0; i < 15; i++) {
+        var angle = (i / 15) * 2 * Math.PI; // Evenly distribute the small cells around the big cell
+        var newCell = new Entity.PlayerCell(this, client, parent.position, Math.sqrt(smallCellMass * 100));
+        newCell.setBoost(this.config.splitVelocity * Math.pow(smallCellMass, 0.0122), angle);
+        this.addNode(newCell);
+    }
 };
 
 GameServer.prototype.setBorder = function (width, height) {
@@ -821,24 +839,35 @@ GameServer.prototype.resolveRigidCollision = function (m) {
 GameServer.prototype.resolveCollision = function (m) {
     var cell = m.cell;
     var check = m.check;
+
+    // Check if the cell being eaten is a virus
+    if (check.cellType === 3) { // Virus cell type
+        // Check if the cell eating the virus has mass greater than 460
+        if (cell._mass > 460) {
+            this.splitOnVirusEaten(cell.owner, cell);
+        }
+    }
+
+    // Rest of the collision resolution logic
     if (cell._size > check._size) {
         cell = m.check;
         check = m.cell;
     }
-    // Do not resolve removed
+
+    // Do not resolve removed cells
     if (cell.isRemoved || check.isRemoved)
         return;
 
-    // check eating distance
+    // Check eating distance
     check.div = this.config.mobilePhysics ? 20 : 3;
     if (m.d >= check._size - cell._size / check.div) {
-        return; // too far => can't eat
+        return; // Too far => can't eat
     }
 
-    // collision owned => ignore, resolve, or remerge
+    // Collision owned => ignore, resolve, or remerge
     if (cell.owner && cell.owner == check.owner) {
         if (cell.getAge() < 13 || check.getAge() < 13)
-            return; // just splited => ignore
+            return; // Just split => ignore
     } else if (check._size < cell._size * 1.15 || !check.canEat(cell))
         return; // Cannot eat or cell refuses to be eaten
 
@@ -1259,4 +1288,5 @@ function trackerRequest(options, type, body) {
     });
     req.write(body);
     req.end();
-}
+};
+

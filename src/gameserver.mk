@@ -47,8 +47,8 @@ serverGamemode = 0
 serverBots = 0
 serverViewBaseX = 1920
 serverViewBaseY = 1080
-serverMinScale = 0.15
-serverSpectatorScale = 0.4
+serverMinScale = 0.1
+serverSpectatorScale = 0.1
 serverStatsPort = 1234
 serverStatsUpdate = 30
 mobilePhysics = 0
@@ -67,9 +67,9 @@ serverMaxLB = 20
 serverChat = 1
 serverChatAscii = 0
 separateChatForTeams = 0
-serverName = "MK Agar.io"
-serverWelcome1 = "Welcome to MK Agar.io"
-serverWelcome2 = "Join the MK Clan at bit.ly/jointhemkclan!"
+serverName = "Flux Agar.io"
+serverWelcome1 = "Welcome to Flux Agar.io"
+serverWelcome2 = "This Server is in Beta and Will be Improved Soon!"
 clientBind = ""
 
 ; [ANTI-BOT]
@@ -88,8 +88,8 @@ playerBotGrow = 0
 
 ; [BORDER]
 ; Border size (vanilla 14142.135623730952)
-borderWidth = 14142.135623730952
-borderHeight = 14142.135623730952
+borderWidth = 10142.135623730952
+borderHeight = 10142.135623730952
 
 ; [FOOD]
 ; foodMinSize: vanilla 10 (mass = 10*10/100 = 1 mass)
@@ -99,11 +99,11 @@ borderHeight = 14142.135623730952
 ; foodSpawnAmount: The number of food to spawn per spawnInterval
 ; foodMassGrow: Enable food mass grow ?
 ; spawnInterval: The interval between each food cell spawn in ticks (1 tick = 40 ms)
-foodMinSize = 16
+foodMinSize = 10
 foodMaxSize = 20
-foodMinAmount = 2000
-foodMaxAmount = 2000
-foodSpawnAmount = 30
+foodMinAmount = 4000
+foodMaxAmount = 6000
+foodSpawnAmount = 100
 foodMassGrow = 1
 spawnInterval = 10
 
@@ -118,11 +118,11 @@ spawnInterval = 10
 ; virusVelocity: Velocity of moving viruses (speed and distance)
 ; virusMaxCells: Maximum cells a player is allowed to have from virus splits (0 for playerMaxCells)
 virusMinSize = 100
-virusMaxSize = 141.421356237
+virusMaxSize = 130.421356237
 virusMaxPoppedSize = 60
-virusEqualPopSize = 0
-virusMinAmount = 50
-virusMaxAmount = 100
+virusEqualPopSize = 1
+virusMinAmount = 110
+virusMaxAmount = 130
 motherCellMaxMass = 0
 virusVelocity = 780
 virusMaxCells = 0
@@ -158,18 +158,18 @@ ejectVelocity = 780
 ; playerDisconnectTime: Time in seconds before a disconnected player's cell is removed from the server (Set to -1 to never remove)
 ; splitVelocity: Velocity of splitting playercells (speed and distance)
 playerMinSize = 31.6227766017
-playerMaxSize = 3000
+playerMaxSize = 10000000
 playerMinSplitSize = 59.16079783
 playerMinEjectSize = 59.16079783
 playerStartSize = 50
 playerMaxCells = 16
 playerSpeed = 1
-playerDecayRate = 0.002
-playerDecayCap = 0
-playerRecombineTime = 30
-playerMaxNickLength = 25
+playerDecayRate = 0.02
+playerDecayCap = 10000000
+playerRecombineTime = 20
+playerMaxNickLength = 15
 playerDisconnectTime = -1
-splitVelocity = 780
+splitVelocity = 1000
 
 ; [MINIONS]
 ; Custom minion settings
@@ -189,7 +189,7 @@ disableERTP = 1
 disableQ = 0
 serverMinions = 0
 collectPellets = 0
-defaultName = "MKLads"
+defaultName = "ar"
 minionsOnLeaderboard = 0
 
 # [Gamemode]

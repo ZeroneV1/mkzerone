@@ -605,24 +605,23 @@ Commands.list = {
         }
         if (client == null) return void Logger.warn("That player ID is non-existant!");
     },
-    speed: function (gameServer, split) {
-        var id = parseInt(split[1]);
-        var speed = parseInt(split[2]);
-        if (isNaN(id)) {
-            Logger.print("Please specify a valid player ID!");
-            return;
-        }
+   speed: function (gameServer, split) {
+    var id = split[1]; // This can be an ID or "all"
+    var speed = parseInt(split[2]);
 
-        if (isNaN(speed)) {
-            Logger.print("Please specify a valid speed!");
-            return;
-        }
+    if (isNaN(speed)) {
+        Logger.print("Please specify a valid speed!");
+        return;
+    }
 
+    if (id.toLowerCase() === "all") {
+        // Handle /speed all command
+        var count = 0;
         for (var i in gameServer.clients) {
-            if (gameServer.clients[i].playerTracker.pID == id) {
-                var client = gameServer.clients[i].playerTracker;
+            var client = gameServer.clients[i].playerTracker;
+            if (client.pID >= 1 && client.pID <= 100) { // Only apply to IDs 1-100
                 client.customspeed = speed;
-                // override getSpeed function from PlayerCell
+                // Override getSpeed function from PlayerCell
                 Entity.PlayerCell.prototype.getSpeed = function (dist) {
                     var speed = 2.2 * Math.pow(this._size, -0.439);
                     speed = this.owner.customspeed ?
@@ -630,11 +629,47 @@ Commands.list = {
                         speed * 40 * this.gameServer.config.playerSpeed;
                     return Math.min(dist, speed) / dist;
                 };
+                count++;
             }
         }
-        if (client == null) return void Logger.warn("That player ID is non-existant!");
+        if (count === 0) {
+            Logger.warn("No players with IDs 1-100 found!");
+        } else {
+            Logger.print("Set base speed of all players (IDs 1-100) to " + speed);
+        }
+        return;
+    }
+
+    // Handle /speed <id> command
+    id = parseInt(id);
+    if (isNaN(id)) {
+        Logger.print("Please specify a valid player ID!");
+        return;
+    }
+
+    var client = null;
+    for (var i in gameServer.clients) {
+        if (gameServer.clients[i].playerTracker.pID === id) {
+            client = gameServer.clients[i].playerTracker;
+            client.customspeed = speed;
+            // Override getSpeed function from PlayerCell
+            Entity.PlayerCell.prototype.getSpeed = function (dist) {
+                var speed = 2.2 * Math.pow(this._size, -0.439);
+                speed = this.owner.customspeed ?
+                    speed * 40 * this.owner.customspeed : // Set by command
+                    speed * 40 * this.gameServer.config.playerSpeed;
+                return Math.min(dist, speed) / dist;
+            };
+            break;
+        }
+    }
+
+    if (client === null) {
+        Logger.warn("That player ID is non-existent!");
+    } else {
         Logger.print("Set base speed of " + getName(client._name) + " to " + speed);
-    },
+    }
+},
     merge: function (gameServer, split) {
         // Validation checks
         var id = parseInt(split[1]);
